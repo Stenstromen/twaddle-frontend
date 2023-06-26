@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60">
+  <!-- Represents the large dataset GPT-2 is trained on -->
+  <path fill="lightgray" d="M10 10 Q 20 0, 30 10 T 50 10 T 70 10 T 90 10 Q 100 0, 110 10" />
+  <!-- Represents the learning process -->
+  <circle cx="60" cy="30" r="20" fill="lightblue" />
+  <path fill="none" stroke="black" stroke-width="1" d="M 60 20 Q 70 30, 60 40 Q 50 30, 60 20"/>
+  <!-- Represents the generated text -->
+  <path fill="none" stroke="black" d="M 60 40 Q 70 50, 80 40 T 100 40" />
+</svg>
