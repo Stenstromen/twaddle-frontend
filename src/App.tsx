@@ -5,6 +5,7 @@ import axios from "axios";
 import twaddle from "./assets/twaddle.svg";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
 import { VscDebugContinueSmall } from "react-icons/vsc";
+import { TbPrompt } from "react-icons/tb";
 import { AiOutlineClear, AiOutlineCopy, AiOutlineSend } from "react-icons/ai";
 import {
   Button,
@@ -26,7 +27,7 @@ function App() {
   }>({ output: "" });
   const [prompt, setPrompt] = useState<string>("");
   const [currTfTokens, setCurrTfTokens] = useState<number>(0);
-  const tfTokens = 10;
+  const tfTokens = import.meta.env.VITE_APP_TF_TOKENS;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const clearOutput = () => {
@@ -57,9 +58,17 @@ function App() {
     }
 
     try {
-      const res = await axios.post(import.meta.env.VITE_APP_BACKEND, {
-        input: inputText,
-      });
+      const res = await axios.post(
+        import.meta.env.VITE_APP_BACKEND,
+        {
+          input: inputText,
+        },
+        {
+          headers: {
+            Authorization: import.meta.env.VITE_APP_BACKEND_AUTH,
+          },
+        }
+      );
 
       if (res.data.output.includes("<|endoftext|>")) {
         return setCurrTfTokens(tfTokens);
@@ -175,7 +184,9 @@ function App() {
         <Row>
           <Col xs={8} md={8} className="mx-auto">
             <InputGroup className="mt-2 mb-2 mx-auto">
-              <InputGroup.Text>Prompt</InputGroup.Text>
+              <InputGroup.Text>
+                <TbPrompt size={30}/>
+              </InputGroup.Text>
               <Form.Control
                 autoFocus
                 disabled={
@@ -192,7 +203,11 @@ function App() {
                     clearOutput();
                   }
                 }}
-                style={{ resize: "none", color: "#fff",backgroundColor: "#40414f" }}
+                style={{
+                  resize: "none",
+                  color: "#fff",
+                  backgroundColor: "#40414f",
+                }}
               />
               <Button
                 disabled={
