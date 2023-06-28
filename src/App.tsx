@@ -59,7 +59,7 @@ function App() {
 
     try {
       const res = await axios.post(
-        import.meta.env.VITE_APP_BACKEND,
+        `${import.meta.env.VITE_APP_BACKEND}/generate`,
         {
           input: inputText,
         },
@@ -115,10 +115,15 @@ function App() {
       </Navbar>
       <Container>
         <Row className="text-center">
-          <h1>Jibberish</h1>
+          <h1 style={{ color: "#fff" }}>Twaddle</h1>
+          <Collapse in={jibberish.output.length == 0}>
+            <p style={{ color: "#fff" }}>
+              Generate gibberish using the distilGP2 model
+            </p>
+          </Collapse>
         </Row>
         <Row>
-          <Col xs={8} md={8} className="mx-auto mb-5 mt-5">
+          <Col xs={8} md={8} className="mx-auto mb-3 mt-2">
             <SwitchTransition>
               <CSSTransition
                 key={jibberish.output.length >= 1 ? "Form" : "Img"}
@@ -158,7 +163,6 @@ function App() {
               <Stack direction="horizontal" gap={3}>
                 <div className="p-2 mx-auto">
                   <Button
-                    className="mt-2"
                     onClick={() => {
                       setCurrTfTokens(0);
                       postJibberish(jibberish.output);
@@ -168,12 +172,12 @@ function App() {
                   </Button>
                 </div>
                 <div className="p-2 mx-auto">
-                  <Button className="mt-2" onClick={copyToClipboard}>
+                  <Button onClick={copyToClipboard}>
                     Copy <AiOutlineCopy size={20} />
                   </Button>
                 </div>
                 <div className="p-2 mx-auto">
-                  <Button className="mt-2" onClick={clearOutput}>
+                  <Button onClick={clearOutput}>
                     Clear <AiOutlineClear size={20} />
                   </Button>
                 </div>
@@ -183,9 +187,9 @@ function App() {
         </Row>
         <Row>
           <Col xs={8} md={8} className="mx-auto">
-            <InputGroup className="mt-2 mb-2 mx-auto">
+            <InputGroup className="mb-2 mx-auto">
               <InputGroup.Text>
-                <TbPrompt size={30}/>
+                <TbPrompt size={30} />
               </InputGroup.Text>
               <Form.Control
                 autoFocus
