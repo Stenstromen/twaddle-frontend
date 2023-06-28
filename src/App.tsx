@@ -2,6 +2,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import axios from "axios";
+import * as tf from "@tensorflow/tfjs";
 import twaddle from "./assets/twaddle.svg";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
 import { VscDebugContinueSmall } from "react-icons/vsc";
@@ -20,8 +21,32 @@ import {
   Stack,
   ThemeProvider,
 } from "react-bootstrap";
+import { encode, decode } from "gpt-tokenizer";
 
 function App() {
+  const texts = "Hello, world!";
+  const tokens = encode(texts); // encode the text into tokens
+  console.log(tokens);
+
+  const decodedText = decode(tokens); // decode the tokens back into text
+  console.log(decodedText);
+  //let model: tf.GraphModel | undefined;
+
+const input1 = tf.tensor(encode(texts), [1, 4], 'int32');
+const input2 = tf.tensor(encode(texts), [1, 4], 'int32');
+const input3 = tf.tensor(encode(texts), [1, 4], 'int32');
+
+tf.loadGraphModel("/model/model.json")
+  .then((model) => {
+    const output = model.predict([input1, input2, input3]);
+    console.log(output[1]);
+    output.array().then((nestedArray: any) => console.log(nestedArray));
+  })
+  .catch((error) => console.log(error));
+
+/*   const output = model?.predict(tf.tensor(encode(texts)));
+  console.log(output); */
+
   const [jibberish, setJibberish] = useState<{
     output: string;
   }>({ output: "" });
