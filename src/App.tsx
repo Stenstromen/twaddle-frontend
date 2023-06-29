@@ -3,6 +3,9 @@ import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import axios from "axios";
 import * as tf from "@tensorflow/tfjs";
+import '@tensorflow/tfjs';
+//import '@tensorflow/tfjs-converter';
+import { Tokenizer } from 'tokenizers';
 import twaddle from "./assets/twaddle.svg";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
 import { VscDebugContinueSmall } from "react-icons/vsc";
@@ -21,31 +24,159 @@ import {
   Stack,
   ThemeProvider,
 } from "react-bootstrap";
-import { encode, decode } from "gpt-tokenizer";
 
 function App() {
-  const texts = "Hello, world!";
-  const tokens = encode(texts); // encode the text into tokens
-  console.log(tokens);
 
-  const decodedText = decode(tokens); // decode the tokens back into text
-  console.log(decodedText);
-  //let model: tf.GraphModel | undefined;
+  const loadModel = async () => {
+    const model = await tf.loadGraphModel('/model/model.json');
+    return model;
+  };
 
-const input1 = tf.tensor(encode(texts), [1, 4], 'int32');
-const input2 = tf.tensor(encode(texts), [1, 4], 'int32');
-const input3 = tf.tensor(encode(texts), [1, 4], 'int32');
+  const [modelLoaded, setModelLoaded] = useState(false);
 
-tf.loadGraphModel("/model/model.json")
-  .then((model) => {
-    const output = model.predict([input1, input2, input3]);
-    console.log(output[1]);
-    output.array().then((nestedArray: any) => console.log(nestedArray));
-  })
-  .catch((error) => console.log(error));
 
-/*   const output = model?.predict(tf.tensor(encode(texts)));
-  console.log(output); */
+
+  const [generatedText, setGeneratedText] = useState('');
+
+  useEffect(() => {
+    const fetchModelAndTokenizer = async () => {
+      const model = await tf.loadLayersModel('/model/model.json');
+      const tokenizer = await fetchTokenizer('/model/tokenizer.json');
+      return { model, tokenizer };
+    };
+
+    const fetchTokenizer = async (tokenizerPath: RequestInfo | URL) => {
+      const [tokenizerJson, vocabJson] = await Promise.all([
+        fetch(tokenizerPath).then(response => response.json()),
+        fetch('/model/vocab.json').then(response => response.json())
+      ]);
+
+      const tokenizer = new Tokenizer(vocabJson);
+      await tokenizer.fromJSON(JSON.stringify(tokenizerJson));
+      return tokenizer;
+    };
+
+    const generateText = async (model, tokenizer) => {
+      const seedText = 'Input your seed text here';
+    
+      const MAX_LENGTH = 100;
+      const temperature = 0.6;
+    
+      const tokenizedSeed = tokenizer.encode(seedText);
+      let input = tf.tensor2d([tokenizedSeed], [1, tokenizedSeed.length]); // Adjust the shape based on the model's input requirements
+    
+      const generatedTokens = [];
+    
+      for (let i = 0; i < MAX_LENGTH; i++) {
+        const logits = model.predict(input);
+        const sampledTokenIndex = tf.multinomial(logits.div(temperature), 1).dataSync()[0];
+        generatedTokens.push(sampledTokenIndex);
+        input.dispose(); // Dispose the input tensor to avoid memory leaks
+        input = tf.tensor2d([generatedTokens], [1, generatedTokens.length]); // Update the input tensor for the next iteration
+      }
+    
+      const generatedText = tokenizer.decode(generatedTokens);
+      return generatedText;
+    };
+
+    const generate = async () => {
+      const { model, tokenizer } = await fetchModelAndTokenizer();
+      const generatedText = await generateText(model, tokenizer);
+      setGeneratedText(generatedText);
+    };
+
+    generate();
+  }, []);
+
+  console.log(modelLoaded);
+  console.log(generatedText);
+
+/*   async function poop() {
+    async function loadModel() {
+      const model = await tf.loadGraphModel("/model/model.json");
+      return model;
+    }
+  
+    async function loadVocab() {
+      const response = await fetch(
+        "/model/vocab.json"
+      );
+      const vocab = await response.json();
+      return vocab;
+    }
+  
+    async function loadTokenizer() {
+      const response = await fetch('/model/tokenizer.json');
+      const tokenizerData = await response.json();
+      const vocabResponse = await fetch('/model/vocab.json');
+      const vocab = await vocabResponse.json();
+      return new Tokenizer(tokenizerData, vocab);
+    }
+  
+    class Tokenizer {
+      constructor(tokenizerData, vocab) {
+        this.tokenizerData = tokenizerData;
+        this.vocab = vocab;
+      }
+    
+      encode(text) {
+        // Perform your text encoding here based on the loaded tokenizer data.
+        // This will be specific to the tokenizer you're using.
+        let ids = [];
+        for (let i = 0; i < text.length; i++) {
+          const token = this.vocab[text[i]];
+          if (token !== undefined) {
+            ids.push(token);
+          }
+        }
+        return ids;
+      }
+  
+      decode(tokens) {
+        let text = "";
+        for (let token of tokens) {
+          if (token in this.reverseVocab) {
+            text += this.reverseVocab[token];
+          }
+        }
+        return text;
+      }
+    }
+
+    const [model, vocab, tokenizer] = await Promise.all([
+      loadModel(),
+      loadVocab(),
+      loadTokenizer(),
+    ]);
+
+    const inputText = "Hello, world!";
+    const inputIds = tokenizer.encode(inputText);
+    console.log(inputIds);
+    const inputTensor = tf.tensor2d([inputIds], undefined, 'int32');
+    console.log(inputTensor);
+    const attentionMask = tf.tensor2d([Array(inputIds.length).fill(1)], undefined, 'int32');
+    console.log(attentionMask);
+    const attentionMask2D = attentionMask.reshape([1, -1]);  // Reshape it into a 2D tensor, ensuring the new shape is an array
+    
+    const tokenTypeIds = tf.tensor2d([Array(inputIds.length).fill(1)], undefined, 'int32');
+    const tokenTypeIds2D = tokenTypeIds.reshape([-1, inputIds.length]);
+    
+    const outputTensor = model.execute({ input_ids: inputTensor, attention_mask: attentionMask2D, token_type_ids: tokenTypeIds2D }, ['Identity:0']);
+    
+    
+    // Decode the output tensor
+    const outputIds = Array.from(outputTensor.argMax(-1).dataSync());
+    console.log(outputIds);
+
+    const outputIdsArray = Array.from(outputIds);
+    const outputText = tokenizer.decode(outputIdsArray);
+    
+    console.log(outputText);
+  }
+
+  useEffect(() => {
+    poop();
+  }, []); */
 
   const [jibberish, setJibberish] = useState<{
     output: string;
