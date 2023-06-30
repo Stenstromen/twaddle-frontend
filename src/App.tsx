@@ -3,9 +3,9 @@ import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import axios from "axios";
 import * as tf from "@tensorflow/tfjs";
-import '@tensorflow/tfjs';
+import "@tensorflow/tfjs";
 //import '@tensorflow/tfjs-converter';
-import { Tokenizer } from 'tokenizers';
+import { Tokenizer } from "tokenizers";
 import twaddle from "./assets/twaddle.svg";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
 import { VscDebugContinueSmall } from "react-icons/vsc";
@@ -24,10 +24,222 @@ import {
   Stack,
   ThemeProvider,
 } from "react-bootstrap";
+//import { encode, decode } from "gpt-tokenizer";
 
 function App() {
 
-  const loadModel = async () => {
+
+  useEffect(() => {
+    async function loadTokenizerAndModel() {
+      try {
+        // Load the tokenizer (vocab.json)
+        const vocabResponse = await fetch("/model/vocab.json");
+        if (!vocabResponse.ok) {
+          throw new Error("HTTP error " + vocabResponse.status);
+        }
+        const vocab = await vocabResponse.json();
+  
+        // Create reverse vocab for decoding
+        let reverseVocab = {};
+        for (let char in vocab) {
+          reverseVocab[vocab[char]] = char;
+        }
+  
+        // Encoding function
+        function encode(text) {
+          let encoded = [];
+          for (let i = 0; i < text.length; i++) {
+            let char = text[i];
+            if (vocab[char] !== undefined) {
+              encoded.push(vocab[char]);
+            } else {
+              encoded.push(vocab["<UNK>"]); // replace <UNK> with your unknown character token
+            }
+          }
+          return encoded;
+        }
+  
+        // Decoding function
+        function decode(ids) {
+          let decoded = "";
+          for (let i = 0; i < ids.length; i++) {
+            let id = ids[i];
+            if (reverseVocab[id] !== undefined) {
+              decoded += reverseVocab[id];
+            } else {
+              decoded += "<UNK>"; // replace <UNK> with your unknown character token
+            }
+          }
+          return decoded;
+        }
+  
+        // Load the model (model.json)
+        const model = await tf.loadGraphModel("/model/model.json");
+  
+        // Continue with the rest of your code...
+        const text = "meow";
+        const tokenLimit = 20;
+  
+        // Encode text into tokens
+        const tokens = encode(text);
+  
+        // Truncate tokens to tokenLimit
+        const truncatedTokens = tokens.slice(0, tokenLimit);
+  
+        // Decode tokens back to text
+        const decodedText = decode(truncatedTokens);
+  
+        // Now that the tokenizer and model are loaded, you can use them for prediction.
+  
+        // More of your code...
+
+        const output = model.predict({
+          input_ids: tf.tensor2d([tokens], [1, tokens.length], "int32"),
+          attention_mask: tf.tensor2d(
+            [Array(tokens.length).fill(1)],
+            [1, tokens.length],
+            "int32"
+          ),
+          token_type_ids: tf.tensor2d(
+            [Array(tokens.length).fill(1)],
+            [1, tokens.length],
+            "int32"
+          ),
+        });
+
+        console.log(output);
+        const outputArray = await output[0].array();
+        console.log(outputArray);
+
+        // For each token in the sequence, select the token ID with the highest probability
+        const predictedTokenIds = outputArray[0].map(
+          (tokenProbabilities: number[]) =>
+            tokenProbabilities.indexOf(Math.max(...tokenProbabilities))
+        );
+
+        console.log(predictedTokenIds);
+
+        // Decode token IDs back to text
+        const decodedOutput = decode(predictedTokenIds);
+        console.log(decodedOutput);
+  
+      } catch (error) {
+        console.error("An error occurred while fetching the vocab.json file or loading the model:", error);
+      }
+    }
+  
+    loadTokenizerAndModel();
+  }, []);
+  
+
+  useEffect(() => {
+    async function loadModel() {
+      fetch("/model/vocab.json")
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("HTTP error " + response.status);
+          }
+          return response.json();
+        })
+        .then((json) => {
+          // Now you have your vocabulary
+          const vocab = json;
+
+          // Create reverse vocab for decoding
+          let reverseVocab = {};
+          for (let char in vocab) {
+            reverseVocab[vocab[char]] = char;
+          }
+
+          // Encoding function
+          function encode(text) {
+            let encoded = [];
+            for (let i = 0; i < text.length; i++) {
+              let char = text[i];
+              if (vocab[char] !== undefined) {
+                encoded.push(vocab[char]);
+              } else {
+                encoded.push(vocab["<UNK>"]); // replace <UNK> with your unknown character token
+              }
+            }
+            return encoded;
+          }
+
+          // Decoding function
+          function decode(ids) {
+            let decoded = "";
+            for (let i = 0; i < ids.length; i++) {
+              let id = ids[i];
+              if (reverseVocab[id] !== undefined) {
+                decoded += reverseVocab[id];
+              } else {
+                decoded += "<UNK>"; // replace <UNK> with your unknown character token
+              }
+            }
+            return decoded;
+          }
+          const model = tf.loadGraphModel("/model/model.json");
+
+          const text = "Generate gibberish using the";
+          const tokenLimit = 20;
+
+          // Encode text into tokens
+          const tokens = encode(text);
+
+          // Truncate tokens to tokenLimit
+          const truncatedTokens = tokens.slice(0, tokenLimit);
+
+          // Decode tokens back to text
+          const decodedText = decode(truncatedTokens);
+
+          console.log(tokens);
+
+          const output = model.predict({
+            input_ids: tf.tensor2d([tokens], [1, tokens.length], "int32"),
+            attention_mask: tf.tensor2d(
+              [Array(tokens.length).fill(1)],
+              [1, tokens.length],
+              "int32"
+            ),
+            token_type_ids: tf.tensor2d(
+              [Array(tokens.length).fill(1)],
+              [1, tokens.length],
+              "int32"
+            ),
+          });
+
+          const outputArray = output[0].array();
+          console.log(outputArray);
+
+          // For each token in the sequence, select the token ID with the highest probability
+          const predictedTokenIds = outputArray[0].map(
+            (tokenProbabilities: number[]) =>
+              tokenProbabilities.indexOf(Math.max(...tokenProbabilities))
+          );
+
+          console.log(predictedTokenIds);
+
+          // Decode token IDs back to text
+          const decodedOutput = decode(predictedTokenIds);
+          console.log(decodedOutput);
+
+          //console.log(output[0].shape);
+          console.log(tokens);
+          console.log(decodedText);
+          /*       const decodedOutput = decode(output[0].shape);
+          console.log(decodedOutput); */
+
+          console.log(outputArray);
+        })
+        .catch(function () {
+          console.log("Error while fetching the vocab.json file.");
+        });
+    }
+
+    loadModel();
+  }, []);
+
+  /*   const loadModel = async () => {
     const model = await tf.loadGraphModel('/model/model.json');
     return model;
   };
@@ -89,9 +301,9 @@ function App() {
   }, []);
 
   console.log(modelLoaded);
-  console.log(generatedText);
+  console.log(generatedText); */
 
-/*   async function poop() {
+  /*   async function poop() {
     async function loadModel() {
       const model = await tf.loadGraphModel("/model/model.json");
       return model;
