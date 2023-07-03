@@ -17,11 +17,13 @@ import {
   Navbar,
   ProgressBar,
   Row,
+  Spinner,
   Stack,
   ThemeProvider,
 } from "react-bootstrap";
 
 function App() {
+  const [waiting, setWaiting] = useState<boolean>(false);
   const [jibberish, setJibberish] = useState<{
     output: string;
   }>({ output: "" });
@@ -29,6 +31,19 @@ function App() {
   const [currTfTokens, setCurrTfTokens] = useState<number>(0);
   const tfTokens = import.meta.env.VITE_APP_TF_TOKENS;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const placeholders = [
+    "The road ahead is long",
+    "I took the Red Pill, but now I have to live the Blue Pill life",
+    "I am a robot",
+    "What if I told you",
+    "The Matrix is a system, Neo",
+    "I know Kung Fu",
+  ];
+
+  const randomPlaceholder = () => {
+    if (waiting) return;
+    return placeholders[Math.floor(Math.random() * placeholders.length)];
+  };
 
   const clearOutput = () => {
     setPrompt("");
@@ -47,8 +62,19 @@ function App() {
     );
   };
 
+  const SpinnerStack = () => {
+    return (
+      <Stack direction="horizontal" gap={5}>
+        <div className="mx-auto">
+          <Spinner className="m-1" animation="border" variant="primary" />
+          <Spinner className="m-1" animation="border" variant="primary" />
+          <Spinner className="m-1" animation="border" variant="primary" />
+        </div>
+      </Stack>
+    );
+  };
+
   const postJibberish = async (inputText: string, count = 0) => {
-    // Base case for the recursion. If count is 100, stop the recursion.
     if (count !== tfTokens) {
       setCurrTfTokens(tfTokens);
     }
@@ -80,7 +106,6 @@ function App() {
         output: newOutput,
       }));
 
-      // Recursive call with the updated output and incremented count
       postJibberish(newOutput, count + 1);
       setCurrTfTokens(count + 1);
     } catch (error) {
@@ -119,6 +144,8 @@ function App() {
           <Collapse in={jibberish.output.length == 0}>
             <p style={{ color: "#fff" }}>
               Generate gibberish using the distilGP2 model
+              <br />
+              Enter a prompt and press enter to generate gibberish
             </p>
           </Collapse>
         </Row>
@@ -145,7 +172,10 @@ function App() {
                     readOnly
                   />
                 ) : (
-                  <img src={twaddle} alt="200" width="100%" />
+                  <>
+                    {waiting && <SpinnerStack />}
+                    <img src={twaddle} alt="200" width="100%" />
+                  </>
                 )}
               </CSSTransition>
             </SwitchTransition>
@@ -177,7 +207,12 @@ function App() {
                   </Button>
                 </div>
                 <div className="p-2 mx-auto">
-                  <Button onClick={clearOutput}>
+                  <Button
+                    onClick={() => {
+                      setWaiting(false);
+                      clearOutput();
+                    }}
+                  >
                     Clear <AiOutlineClear size={20} />
                   </Button>
                 </div>
@@ -203,10 +238,12 @@ function App() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
+                    setWaiting(true);
                     postJibberish(prompt);
                     clearOutput();
                   }
                 }}
+                placeholder={randomPlaceholder()}
                 style={{
                   resize: "none",
                   color: "#fff",
@@ -218,6 +255,7 @@ function App() {
                   jibberish.output.length >= 1 && currTfTokens !== tfTokens
                 }
                 onClick={() => {
+                  setWaiting(true);
                   postJibberish(prompt);
                   clearOutput();
                 }}

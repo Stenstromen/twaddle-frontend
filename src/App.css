@@ -1,5 +1,11 @@
 body {
-    background-color: #444654;
+  background-color: #444654;
+}
+
+::placeholder {
+  color: lightgray !important;
+  font-style: italic;
+  font-size: medium;
 }
 
 .fade-enter {
