@@ -25,75 +25,33 @@ import {
   ThemeProvider,
 } from "react-bootstrap";
 //import { encode, decode } from "gpt-tokenizer";
+import { encode, decode } from "./gpt-2-3-tokenizer/mod.js";
 
 function App() {
-
-
   useEffect(() => {
     async function loadTokenizerAndModel() {
       try {
-        // Load the tokenizer (vocab.json)
-        const vocabResponse = await fetch("/model/vocab.json");
-        if (!vocabResponse.ok) {
-          throw new Error("HTTP error " + vocabResponse.status);
-        }
-        const vocab = await vocabResponse.json();
-  
-        // Create reverse vocab for decoding
-        let reverseVocab = {};
-        for (let char in vocab) {
-          reverseVocab[vocab[char]] = char;
-        }
-  
-        // Encoding function
-        function encode(text) {
-          let encoded = [];
-          for (let i = 0; i < text.length; i++) {
-            let char = text[i];
-            if (vocab[char] !== undefined) {
-              encoded.push(vocab[char]);
-            } else {
-              encoded.push(vocab["<UNK>"]); // replace <UNK> with your unknown character token
-            }
-          }
-          return encoded;
-        }
-  
-        // Decoding function
-        function decode(ids) {
-          let decoded = "";
-          for (let i = 0; i < ids.length; i++) {
-            let id = ids[i];
-            if (reverseVocab[id] !== undefined) {
-              decoded += reverseVocab[id];
-            } else {
-              decoded += "<UNK>"; // replace <UNK> with your unknown character token
-            }
-          }
-          return decoded;
-        }
-  
         // Load the model (model.json)
         const model = await tf.loadGraphModel("/model/model.json");
-  
+
         // Continue with the rest of your code...
-        const text = "meow";
-        const tokenLimit = 20;
-  
+        const text = `How am I `;
+        //const tokenLimit = 200;
+
         // Encode text into tokens
         const tokens = encode(text);
-  
+
         // Truncate tokens to tokenLimit
-        const truncatedTokens = tokens.slice(0, tokenLimit);
-  
+        //const truncatedTokens = tokens.slice(0, tokenLimit);
+
         // Decode tokens back to text
-        const decodedText = decode(truncatedTokens);
-  
+        //const decodedText = decode(truncatedTokens);
+
         // Now that the tokenizer and model are loaded, you can use them for prediction.
-  
+
         // More of your code...
 
-        const output = model.predict({
+        const output = model.execute({
           input_ids: tf.tensor2d([tokens], [1, tokens.length], "int32"),
           attention_mask: tf.tensor2d(
             [Array(tokens.length).fill(1)],
@@ -106,6 +64,50 @@ function App() {
             "int32"
           ),
         });
+
+        function sampleFromProbabilities(probabilities: any[], temperature=0.7) {
+          const scaledProbabilities = probabilities.map(p => Math.pow(p, 1.0 / temperature));
+          const total = scaledProbabilities.reduce((a, b) => a + b, 0);
+          const threshold = Math.random() * total;
+          let sum = 0;
+          for (let i = 0; i < scaledProbabilities.length; i++) {
+            sum += scaledProbabilities[i];
+            if (sum >= threshold) {
+              return i;
+            }
+          }
+          return probabilities.length - 1;
+        }
+
+        const tokenss = encode(text);
+/*         if (tokenss.length < 31) {
+          tokenss.push(0);
+      } */
+        while (tokenss.length < 10) {
+          const input = tf.tensor2d([tokenss], [1, tokenss.length], "int32");
+          const output = model.predict({
+            input_ids: input,
+            attention_mask: tf.tensor2d(
+              [Array(tokenss.length).fill(1)],
+              [1, tokenss.length],
+              "int32"
+            ),
+            token_type_ids: tf.tensor2d(
+              [Array(tokenss.length).fill(1)],
+              [1, tokenss.length],
+              "int32"
+            ),
+          });
+          const outputArray = await output[0].array();
+          const probabilities = outputArray[0][outputArray[0].length - 1];
+          const nextToken = sampleFromProbabilities(probabilities); // You need to write this function
+          tokenss.push(nextToken);
+          console.log(nextToken);
+        }
+        const texts = decode(tokenss);
+        console.log(texts);
+
+        
 
         console.log(output);
         const outputArray = await output[0].array();
@@ -122,15 +124,16 @@ function App() {
         // Decode token IDs back to text
         const decodedOutput = decode(predictedTokenIds);
         console.log(decodedOutput);
-  
       } catch (error) {
-        console.error("An error occurred while fetching the vocab.json file or loading the model:", error);
+        console.error(
+          "An error occurred while fetching the vocab.json file or loading the model:",
+          error
+        );
       }
     }
-  
+
     loadTokenizerAndModel();
   }, []);
-  
 
   useEffect(() => {
     async function loadModel() {
