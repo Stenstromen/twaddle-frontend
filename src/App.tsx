@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import axios from "axios";
 import twaddle from "./assets/twaddle.svg";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
 import { VscDebugContinueSmall } from "react-icons/vsc";
 import { TbPrompt } from "react-icons/tb";
@@ -22,6 +23,8 @@ import {
   ThemeProvider,
 } from "react-bootstrap";
 
+type Status = "error" | "expired" | "solved";
+
 function App() {
   const [waiting, setWaiting] = useState<boolean>(false);
   const [jibberish, setJibberish] = useState<{
@@ -31,6 +34,7 @@ function App() {
   const [currTfTokens, setCurrTfTokens] = useState<number>(0);
   const tfTokens = import.meta.env.VITE_APP_TF_TOKENS;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [status, setStatus] = useState<Status | null>(null);
   const placeholders = [
     "The road ahead is long",
     "I took the Red Pill, but now I have to live the Blue Pill life",
@@ -75,6 +79,10 @@ function App() {
   };
 
   const postJibberish = async (inputText: string, count = 0) => {
+    if (status !== "solved") {
+      return;
+    }
+
     if (count !== tfTokens) {
       setCurrTfTokens(tfTokens);
     }
@@ -229,7 +237,8 @@ function App() {
               <Form.Control
                 autoFocus
                 disabled={
-                  jibberish.output.length >= 1 && currTfTokens !== tfTokens
+                  (jibberish.output.length >= 1 && currTfTokens !== tfTokens) ||
+                  status !== "solved"
                 }
                 as="textarea"
                 aria-label="With textarea"
@@ -252,7 +261,8 @@ function App() {
               />
               <Button
                 disabled={
-                  jibberish.output.length >= 1 && currTfTokens !== tfTokens
+                  (jibberish.output.length >= 1 && currTfTokens !== tfTokens) ||
+                  status !== "solved"
                 }
                 onClick={() => {
                   setWaiting(true);
@@ -265,6 +275,14 @@ function App() {
                 <AiOutlineSend size={20} />
               </Button>
             </InputGroup>
+            <Col className="d-flex justify-content-center mt-4 ml-4">
+              <Turnstile
+                siteKey="0x4AAAAAAAG6Mpom33s7omsj"
+                onError={() => setStatus("error")}
+                onExpire={() => setStatus("expired")}
+                onSuccess={() => setStatus("solved")}
+              />
+            </Col>
           </Col>
         </Row>
       </Container>
