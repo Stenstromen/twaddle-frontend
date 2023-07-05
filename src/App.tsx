@@ -34,6 +34,7 @@ function App() {
   const [currTfTokens, setCurrTfTokens] = useState<number>(0);
   const tfTokens = import.meta.env.VITE_APP_TF_TOKENS;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const placeholders = [
     "The road ahead is long",
@@ -126,6 +127,12 @@ function App() {
       textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
     }
   }, [jibberish.output]);
+
+  useEffect(() => {
+    if (status === "solved" && promptRef.current) {
+      promptRef.current.focus();
+    }
+  }, [status]);
 
   return (
     <ThemeProvider
@@ -235,7 +242,7 @@ function App() {
                 <TbPrompt size={30} />
               </InputGroup.Text>
               <Form.Control
-                autoFocus
+                ref={promptRef}
                 disabled={
                   (jibberish.output.length >= 1 && currTfTokens !== tfTokens) ||
                   status !== "solved"
