@@ -1,7 +1,7 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
-import axios from "axios";
+import { io } from "socket.io-client";
 import twaddle from "./assets/twaddle.svg";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
@@ -23,7 +23,7 @@ import {
   ThemeProvider,
 } from "react-bootstrap";
 
-type Status = "error" | "expired" | "solved";
+type Status = "error" | "expired" | "solved" | "generating" | "Generation complete.";
 
 function App() {
   const [waiting, setWaiting] = useState<boolean>(false);
@@ -79,47 +79,45 @@ function App() {
     );
   };
 
-  const postJibberish = async (inputText: string, count = 0) => {
-    if (status !== "solved") {
-      return;
-    }
+  const postJibberish = async (inputText: string) => {
+    const socket = io(import.meta.env.VITE_APP_BACKEND, {
+      query: {
+        auth: import.meta.env.VITE_APP_BACKEND_AUTH,
+      },
+    });
 
-    if (count !== tfTokens) {
-      setCurrTfTokens(tfTokens);
-    }
+    setJibberish({
+      output: inputText,
+    });
 
-    if (count >= tfTokens) {
-      return;
-    }
+    socket.on("connect", () => {
+      console.log("Connected to twaddle-backend.");
+      setJibberish({ output: ` ${inputText}` });
+      socket.emit("generate", { input: inputText, max_length: 100 });
+    });
 
-    try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_APP_BACKEND}/generate`,
-        {
-          input: inputText,
-        },
-        {
-          headers: {
-            Authorization: import.meta.env.VITE_APP_BACKEND_AUTH,
-          },
-        }
-      );
-
-      if (res.data.output.includes("<|endoftext|>")) {
-        return setCurrTfTokens(tfTokens);
+    socket.on("generated", (data: { output: string; generated: string }) => {
+      if (
+        data.output === "Generation complete." ||
+        data.output === "<|endoftext|>"
+      ) {
+        setCurrTfTokens(tfTokens);
+        setStatus("Generation complete.");
+        return;
       }
 
-      const newOutput = inputText + res.data.output;
-      setJibberish((jibberish) => ({
-        ...jibberish,
-        output: newOutput,
+      setJibberish((currentJibberish) => ({
+        ...currentJibberish,
+        output: currentJibberish.output + data.output,
       }));
 
-      postJibberish(newOutput, count + 1);
-      setCurrTfTokens(count + 1);
-    } catch (error) {
-      console.error("Error posting data:", error);
-    }
+      setCurrTfTokens((currTfTokens) => currTfTokens + 1);
+      setStatus("generating");
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("Connection error:", err.message);
+    });
   };
 
   useEffect(() => {
@@ -243,10 +241,7 @@ function App() {
               </InputGroup.Text>
               <Form.Control
                 ref={promptRef}
-                disabled={
-                  (jibberish.output.length >= 1 && currTfTokens !== tfTokens) ||
-                  status !== "solved"
-                }
+                disabled={status === "generating"}
                 as="textarea"
                 aria-label="With textarea"
                 value={prompt}
@@ -267,10 +262,7 @@ function App() {
                 }}
               />
               <Button
-                disabled={
-                  (jibberish.output.length >= 1 && currTfTokens !== tfTokens) ||
-                  status !== "solved"
-                }
+                disabled={status === "generating"}
                 onClick={() => {
                   setWaiting(true);
                   postJibberish(prompt);
@@ -283,12 +275,12 @@ function App() {
               </Button>
             </InputGroup>
             <Col className="d-flex justify-content-center mt-4 ml-4">
-              <Turnstile
+              {/*               <Turnstile
                 siteKey="0x4AAAAAAAG6Mpom33s7omsj"
                 onError={() => setStatus("error")}
                 onExpire={() => setStatus("expired")}
                 onSuccess={() => setStatus("solved")}
-              />
+              /> */}
             </Col>
           </Col>
         </Row>
