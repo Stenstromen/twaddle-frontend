@@ -23,7 +23,12 @@ import {
   ThemeProvider,
 } from "react-bootstrap";
 
-type Status = "error" | "expired" | "solved" | "generating" | "Generation complete.";
+type Status =
+  | "error"
+  | "expired"
+  | "solved"
+  | "generating"
+  | "Generation complete.";
 
 function App() {
   const [waiting, setWaiting] = useState<boolean>(false);
@@ -275,12 +280,12 @@ function App() {
               </Button>
             </InputGroup>
             <Col className="d-flex justify-content-center mt-4 ml-4">
-              {/*               <Turnstile
+              <Turnstile
                 siteKey="0x4AAAAAAAG6Mpom33s7omsj"
                 onError={() => setStatus("error")}
                 onExpire={() => setStatus("expired")}
                 onSuccess={() => setStatus("solved")}
-              /> */}
+              />
             </Col>
           </Col>
         </Row>
