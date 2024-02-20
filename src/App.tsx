@@ -89,6 +89,7 @@ function App() {
       query: {
         auth: import.meta.env.VITE_APP_BACKEND_AUTH,
       },
+      timeout: 30000,
     });
 
     setJibberish({
