@@ -138,6 +138,65 @@ function App() {
     }
   }, [status]);
 
+  const workerRef = useRef(null);
+
+  useEffect(() => {
+    workerRef.current = new Worker(new URL("./worker.js", import.meta.url), {
+      type: "module",
+    });
+
+    workerRef.current.onmessage = (event: any) => {
+      const message = event.data;
+      switch (message.type) {
+        case "update":
+          console.log(message.data);
+          break;
+        case "download":
+          if (message.data.status === "initiate") {
+            console.log("Download initiated");
+            console.log(message.data.name);
+            console.log(message.data.file);
+          } else {
+            switch (message.data.status) {
+              case "progress":
+                console.log(message.data.progress.toFixed(2) + "%");
+                break;
+
+              case "done":
+                console.log("Download complete");
+                break;
+
+              case "ready":
+                console.log("Worker ready");
+                break;
+            }
+          }
+          break;
+      }
+    };
+
+    return () => {
+      workerRef.current.terminate();
+    };
+  }, []);
+
+  const handleGenerate = () => {
+    if (workerRef.current) {
+      workerRef.current.postMessage({
+        task: "text-generation",
+        text: "The road ahead is long",
+        generation: {
+          max_length: 100,
+          do_sample: true,
+          top_k: 50,
+          top_p: 0.95,
+          temperature: 1,
+          num_return_sequences: 1,
+        },
+      });
+    }
+  };
+
   return (
     <ThemeProvider
       breakpoints={["xxxl", "xxl", "xl", "lg", "md", "sm", "xs", "xxs"]}
@@ -279,14 +338,15 @@ function App() {
               >
                 <AiOutlineSend size={20} />
               </Button>
+              <Button onClick={handleGenerate}>Generate</Button>
             </InputGroup>
             <Col className="d-flex justify-content-center mt-4 ml-4">
-              <Turnstile
+              {/*               <Turnstile
                 siteKey="0x4AAAAAAAG6Mpom33s7omsj"
                 onError={() => setStatus("error")}
                 onExpire={() => setStatus("expired")}
                 onSuccess={() => setStatus("solved")}
-              />
+              /> */}
             </Col>
           </Col>
         </Row>
