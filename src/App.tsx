@@ -1,9 +1,7 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
-import { io } from "socket.io-client";
 import twaddle from "./assets/twaddle.svg";
-import { Turnstile } from "@marsidev/react-turnstile";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
 import { VscDebugContinueSmall } from "react-icons/vsc";
 import { TbPrompt } from "react-icons/tb";
@@ -23,14 +21,10 @@ import {
   ThemeProvider,
 } from "react-bootstrap";
 
-type Status =
-  | "error"
-  | "expired"
-  | "solved"
-  | "generating"
-  | "Generation complete.";
+type Status = "generating" | "Generation complete.";
 
 function App() {
+  const workerRef = useRef<Worker | null>(null);
   const [waiting, setWaiting] = useState<boolean>(false);
   const [jibberish, setJibberish] = useState<{
     output: string;
@@ -49,6 +43,10 @@ function App() {
     "The Matrix is a system, Neo",
     "I know Kung Fu",
   ];
+  const [placeholder, setPlaceholder] = useState<string>();
+  const [progressBars, setProgressBars] = useState<
+    { id: string; progress: number }[]
+  >([]);
 
   const randomPlaceholder = () => {
     if (waiting) return;
@@ -84,48 +82,6 @@ function App() {
     );
   };
 
-  const postJibberish = async (inputText: string) => {
-    const socket = io(import.meta.env.VITE_APP_BACKEND, {
-      query: {
-        auth: import.meta.env.VITE_APP_BACKEND_AUTH,
-      },
-      timeout: 30000,
-    });
-
-    setJibberish({
-      output: inputText,
-    });
-
-    socket.on("connect", () => {
-      console.log("Connected to twaddle-backend.");
-      setJibberish({ output: ` ${inputText}` });
-      socket.emit("generate", { input: inputText, max_length: 100 });
-    });
-
-    socket.on("generated", (data: { output: string; generated: string }) => {
-      if (
-        data.output === "Generation complete." ||
-        data.output === "<|endoftext|>"
-      ) {
-        setCurrTfTokens(tfTokens);
-        setStatus("Generation complete.");
-        return;
-      }
-
-      setJibberish((currentJibberish) => ({
-        ...currentJibberish,
-        output: currentJibberish.output + data.output,
-      }));
-
-      setCurrTfTokens((currTfTokens) => currTfTokens + 1);
-      setStatus("generating");
-    });
-
-    socket.on("connect_error", (err) => {
-      console.error("Connection error:", err.message);
-    });
-  };
-
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
@@ -133,10 +89,149 @@ function App() {
   }, [jibberish.output]);
 
   useEffect(() => {
-    if (status === "solved" && promptRef.current) {
+    if (status === "Generation complete." && promptRef.current) {
       promptRef.current.focus();
     }
   }, [status]);
+
+  useEffect(() => {
+    setPlaceholder(randomPlaceholder());
+
+    workerRef.current = new Worker(new URL("./worker.js", import.meta.url), {
+      type: "module",
+    });
+
+    workerRef.current.onmessage = (event: MessageEvent) => {
+      const message = event.data;
+      switch (message.type) {
+        case "update":
+          setJibberish({
+            output: message.data,
+          });
+          setCurrTfTokens((currTfTokens) => currTfTokens + 1);
+          setStatus("generating");
+          break;
+        case "result":
+          setCurrTfTokens(tfTokens);
+          setStatus("Generation complete.");
+          setWaiting(false);
+          break;
+        case "download":
+          if (message.data.status === "initiate") {
+            addProgressBar(message.data.file);
+          } else {
+            switch (message.data.status) {
+              case "progress":
+                updateProgress(
+                  message.data.file,
+                  message.data.progress.toFixed(2)
+                );
+                break;
+              case "done":
+                removeProgressBar(message.data.file);
+                break;
+              case "ready":
+                setStatus("generating");
+                break;
+            }
+          }
+          break;
+      }
+    };
+  }, []);
+
+  const handleGenerate = (prompt: string) => {
+    if (workerRef.current) {
+      workerRef.current.postMessage({
+        task: "text-generation",
+        text: prompt,
+        generation: {
+          max_length: tfTokens,
+          do_sample: true,
+          top_k: 50,
+          top_p: 0.95,
+          temperature: 1,
+          num_return_sequences: 1,
+        },
+      });
+    }
+  };
+
+  function XenovaProgressBar({
+    id,
+    value,
+    onCompletion,
+  }: {
+    id: string;
+    value: number;
+    onCompletion: (id: string) => void;
+  }) {
+    useEffect(() => {
+      if (value >= 100) {
+        onCompletion(id);
+      }
+    }, [value, onCompletion, id]);
+
+    return (
+      <div
+        style={{
+          borderRadius: "10px",
+          width: "100%",
+          backgroundColor: "#ddd",
+          position: "relative",
+          marginBottom: "10px",
+        }}
+      >
+        <div
+          style={{
+            borderRadius: "10px",
+            height: "30px",
+            width: `${value}%`,
+            backgroundColor: "blue",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 10px",
+            color: "#fff",
+          }}
+        >
+          <span>{id}</span>
+          <span>{value}%</span>
+        </div>
+      </div>
+    );
+  }
+
+  const addProgressBar = (id: string) => {
+    const newBar = {
+      id: id,
+      progress: 0,
+    };
+    setProgressBars((prevBars) => [...prevBars, newBar]);
+  };
+
+  const updateProgress = (id: string, progress: string) => {
+    setProgressBars((prevBars) =>
+      prevBars.map((bar) =>
+        bar.id === id
+          ? { ...bar, progress: Math.floor(parseFloat(progress)) }
+          : bar
+      )
+    );
+  };
+
+  const removeProgressBar = (id: string) => {
+    setProgressBars((prevBars) => prevBars.filter((bar) => bar.id !== id));
+  };
 
   return (
     <ThemeProvider
@@ -214,7 +309,7 @@ function App() {
                   <Button
                     onClick={() => {
                       setCurrTfTokens(0);
-                      postJibberish(jibberish.output);
+                      handleGenerate(jibberish.output);
                     }}
                   >
                     Continue <VscDebugContinueSmall size={20} />
@@ -247,7 +342,7 @@ function App() {
               </InputGroup.Text>
               <Form.Control
                 ref={promptRef}
-                disabled={status === "generating"}
+                disabled={status === "generating" || waiting}
                 as="textarea"
                 aria-label="With textarea"
                 value={prompt}
@@ -256,11 +351,13 @@ function App() {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     setWaiting(true);
-                    postJibberish(prompt);
+                    prompt.length === 0
+                      ? handleGenerate(placeholder!)
+                      : handleGenerate(prompt);
                     clearOutput();
                   }
                 }}
-                placeholder={randomPlaceholder()}
+                placeholder={!jibberish.output ? placeholder : ""}
                 style={{
                   resize: "none",
                   color: "#fff",
@@ -268,11 +365,13 @@ function App() {
                 }}
               />
               <Button
-                disabled={status === "generating"}
+                disabled={status === "generating" || waiting}
                 onClick={() => {
                   setWaiting(true);
-                  postJibberish(prompt);
                   clearOutput();
+                  prompt.length === 0
+                    ? handleGenerate(placeholder!)
+                    : handleGenerate(prompt);
                 }}
                 variant="secondary"
                 id="button-addon2"
@@ -280,14 +379,14 @@ function App() {
                 <AiOutlineSend size={20} />
               </Button>
             </InputGroup>
-            <Col className="d-flex justify-content-center mt-4 ml-4">
-              <Turnstile
-                siteKey="0x4AAAAAAAG6Mpom33s7omsj"
-                onError={() => setStatus("error")}
-                onExpire={() => setStatus("expired")}
-                onSuccess={() => setStatus("solved")}
+            {progressBars.map((bar: { id: string; progress: number }) => (
+              <XenovaProgressBar
+                key={bar.id}
+                id={bar.id}
+                value={bar.progress}
+                onCompletion={removeProgressBar}
               />
-            </Col>
+            ))}
           </Col>
         </Row>
       </Container>
