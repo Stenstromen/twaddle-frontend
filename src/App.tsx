@@ -3,7 +3,6 @@ import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import { io } from "socket.io-client";
 import twaddle from "./assets/twaddle.svg";
-import { Turnstile } from "@marsidev/react-turnstile";
 import { CSSTransition, SwitchTransition } from "react-transition-group";
 import { VscDebugContinueSmall } from "react-icons/vsc";
 import { TbPrompt } from "react-icons/tb";
@@ -156,14 +155,20 @@ function App() {
             console.log("Download initiated");
             console.log(message.data.name);
             console.log(message.data.file);
+            addProgressBar(message.data.file);
           } else {
             switch (message.data.status) {
               case "progress":
                 console.log(message.data.progress.toFixed(2) + "%");
+                updateProgress(
+                  message.data.file,
+                  message.data.progress.toFixed(2)
+                );
                 break;
 
               case "done":
                 console.log("Download complete");
+                removeProgressBar(message.data.file);
                 break;
 
               case "ready":
@@ -173,10 +178,6 @@ function App() {
           }
           break;
       }
-    };
-
-    return () => {
-      workerRef.current.terminate();
     };
   }, []);
 
@@ -195,6 +196,69 @@ function App() {
         },
       });
     }
+  };
+
+  function XenovaProgressBar({ id, value, onCompletion }) {
+    useEffect(() => {
+      if (value >= 100) {
+        onCompletion(id);
+      }
+    }, [value, onCompletion, id]);
+  
+    return (
+      <div style={{
+          borderRadius: "10px",
+          width: "100%",
+          backgroundColor: "#ddd",
+          position: "relative",
+          marginBottom: "10px"
+        }}>
+        <div style={{
+            borderRadius: "10px",
+            height: "30px",
+            width: `${value}%`,
+            backgroundColor: "blue",
+          }} />
+        <div style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 10px",
+            color: "#fff",
+          }}>
+          <span>{id}</span>
+          <span>{value}%</span>
+        </div>
+      </div>
+    );
+  }
+  
+
+  const [progressBars, setProgressBars] = useState([]);
+
+  const addProgressBar = (id: string) => {
+    const newBar = {
+      id: id,
+      progress: 0,
+    };
+    setProgressBars((prevBars) => [...prevBars, newBar]);
+  };
+
+  const updateProgress = (id: string, progress: string) => {
+    setProgressBars((prevBars) =>
+      prevBars.map((bar) =>
+        bar.id === id ? { ...bar, progress: Math.floor(parseFloat(progress)) } : bar
+      )
+    );
+  };
+
+  const removeProgressBar = (id: string) => {
+    setProgressBars((prevBars) => prevBars.filter((bar) => bar.id !== id));
   };
 
   return (
@@ -340,14 +404,14 @@ function App() {
               </Button>
               <Button onClick={handleGenerate}>Generate</Button>
             </InputGroup>
-            <Col className="d-flex justify-content-center mt-4 ml-4">
-              {/*               <Turnstile
-                siteKey="0x4AAAAAAAG6Mpom33s7omsj"
-                onError={() => setStatus("error")}
-                onExpire={() => setStatus("expired")}
-                onSuccess={() => setStatus("solved")}
-              /> */}
-            </Col>
+            {progressBars.map((bar) => (
+              <XenovaProgressBar
+                key={bar.id}
+                id={bar.id}
+                value={bar.progress}
+                onCompletion={removeProgressBar}
+              />
+            ))}
           </Col>
         </Row>
       </Container>
