@@ -341,6 +341,7 @@ function App() {
                 <TbPrompt size={30} />
               </InputGroup.Text>
               <Form.Control
+                autoFocus
                 ref={promptRef}
                 disabled={status === "generating" || waiting}
                 as="textarea"

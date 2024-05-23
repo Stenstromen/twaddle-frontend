@@ -1,5 +1,6 @@
 import { pipeline, env } from "@xenova/transformers";
-env.allowLocalModels = false;
+env.allowLocalModels = true;
+env.localModelPath = "/models"
 
 self.addEventListener("message", async (event) => {
   const data = event.data;
