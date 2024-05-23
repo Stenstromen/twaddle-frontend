@@ -1,6 +1,6 @@
 import { pipeline, env } from "@xenova/transformers";
 env.allowLocalModels = true;
-env.localModelPath = "/models"
+env.localModelPath = "https://ai.stenstromen.se/models"
 
 self.addEventListener("message", async (event) => {
   const data = event.data;
